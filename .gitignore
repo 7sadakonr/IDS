@@ -17,6 +17,7 @@ __pycache__/
 # Supabase and local tooling
 .supabase/
 .superpowers/
+supabase/.temp/
 
 # ML data, generated artifacts, and large reports
 ml/dataset/raw/

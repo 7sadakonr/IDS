@@ -1,4 +1,5 @@
 from typing import Literal
+from functools import lru_cache
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,3 +37,8 @@ class Settings(BaseSettings):
         ):
             raise ValueError("Production ALLOWED_ORIGINS cannot include wildcard or localhost origins")
         return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
