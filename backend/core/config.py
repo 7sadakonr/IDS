@@ -1,5 +1,6 @@
 from typing import Literal
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,7 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Environment-backed settings with secure production defaults."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parents[1] / ".env",
+        extra="ignore",
+        enable_decoding=False,
+    )
 
     app_env: Literal["development", "test", "production"] = Field(
         default="development", validation_alias="APP_ENV"

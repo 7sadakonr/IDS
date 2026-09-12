@@ -1,10 +1,11 @@
 from fastapi.testclient import TestClient
 
-from backend.main import app
+from backend.core.config import Settings
+from backend.main import create_app
 
 
 def test_health_reports_api_and_model_readiness() -> None:
-    response = TestClient(app).get("/health")
+    response = TestClient(create_app(Settings(_env_file=None))).get("/health")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -15,7 +16,7 @@ def test_health_reports_api_and_model_readiness() -> None:
 
 
 def test_health_allows_the_configured_dashboard_origin() -> None:
-    response = TestClient(app).options(
+    response = TestClient(create_app(Settings(_env_file=None))).options(
         "/health",
         headers={
             "Origin": "http://localhost:3000",
