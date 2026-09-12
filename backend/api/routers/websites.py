@@ -48,13 +48,38 @@ def add_website(
     request: WebsiteCreateRequest,
     user_id: str = Depends(get_current_user_id),
     database: Client = Depends(get_database),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     try:
-        record = create_website_record(request.name, request.url)
+        record = create_website_record(request.name, request.url, allow_local=settings.scan_allow_local)
     except (TargetValidationError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    response = database.table("websites").insert({**record, "user_id": user_id}).execute()
-    return response.data[0]
+
+    # Check for duplicate normalized origin for this user
+    existing = (
+        database.table("websites")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("normalized_origin", record["normalized_origin"])
+        .execute()
+    )
+    if existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A website with origin '{record['normalized_origin']}' is already registered in your inventory. You can manage or re-verify it from the dashboard.",
+        )
+
+    try:
+        response = database.table("websites").insert({**record, "user_id": user_id}).execute()
+        return response.data[0]
+    except Exception as exc:
+        error_msg = str(exc)
+        if "duplicate" in error_msg.lower() or "unique" in error_msg.lower() or "23505" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A website with origin '{record['normalized_origin']}' is already registered in your inventory.",
+            ) from exc
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save website record.") from exc
 
 
 @router.get("/{website_id}")
@@ -94,13 +119,16 @@ async def verify_website(
     website_id: str,
     user_id: str = Depends(get_current_user_id),
     database: Client = Depends(get_database),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     website = _owned_website(database, website_id, user_id)
     try:
         is_verified = await verify_ownership_document(
-            website["normalized_origin"], website["verification_token"]
+            website["normalized_origin"],
+            website["verification_token"],
+            allow_local=settings.scan_allow_local,
         )
-    except (BlockedTargetError, TargetValidationError):
+    except (BlockedTargetError, TargetValidationError, Exception):
         is_verified = False
     update = verification_update(is_verified, now=datetime.now(UTC))
     response = database.table("websites").update(update).eq("id", website_id).eq("user_id", user_id).execute()

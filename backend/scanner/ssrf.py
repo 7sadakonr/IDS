@@ -11,7 +11,12 @@ class BlockedTargetError(ValueError):
 Resolver = Callable[[str], Awaitable[Sequence[str]]]
 
 
-async def ensure_public_host(host: str, *, resolver: Resolver | None = None) -> tuple[str, ...]:
+async def ensure_public_host(
+    host: str,
+    *,
+    resolver: Resolver | None = None,
+    allow_local: bool = False,
+) -> tuple[str, ...]:
     """Resolve a hostname and reject it unless every answer is globally routable."""
     addresses = tuple(await (resolver or resolve_host)(host))
     if not addresses:
@@ -22,6 +27,8 @@ async def ensure_public_host(host: str, *, resolver: Resolver | None = None) -> 
             address = ipaddress.ip_address(raw_address)
         except ValueError as error:
             raise BlockedTargetError("Target hostname returned an invalid address") from error
+        if allow_local and address.is_loopback:
+            continue
         if not address.is_global:
             raise BlockedTargetError("Target resolved to a blocked network address")
 

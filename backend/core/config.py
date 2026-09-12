@@ -27,6 +27,7 @@ class Settings(BaseSettings):
         default=None, validation_alias="SUPABASE_SERVICE_ROLE_KEY"
     )
     model_path: str | None = Field(default=None, validation_alias="MODEL_PATH")
+    scan_allow_local: bool = Field(default=False, validation_alias="SCAN_ALLOW_LOCAL")
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -37,10 +38,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_cors(self) -> "Settings":
-        if self.app_env == "production" and any(
-            origin == "*" or "localhost" in origin for origin in self.allowed_origins
-        ):
-            raise ValueError("Production ALLOWED_ORIGINS cannot include wildcard or localhost origins")
+        if self.app_env == "production":
+            if any(origin == "*" or "localhost" in origin for origin in self.allowed_origins):
+                raise ValueError("Production ALLOWED_ORIGINS cannot include wildcard or localhost origins")
+            if self.scan_allow_local:
+                raise ValueError("Production mode cannot enable SCAN_ALLOW_LOCAL")
         return self
 
 

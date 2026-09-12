@@ -22,3 +22,20 @@ def test_cancelled_job_cannot_advance() -> None:
 
     with pytest.raises(ScanJobTransitionError):
         job.advance("CRAWLING", 12)
+
+
+def test_job_can_fail() -> None:
+    job = ScanJob.create("scan-1")
+    job.start()
+    job.fail()
+    assert job.status is ScanStatus.FAILED
+
+
+def test_completed_job_cannot_fail() -> None:
+    job = ScanJob.create("scan-1")
+    job.start()
+    job.complete()
+
+    with pytest.raises(ScanJobTransitionError):
+        job.fail()
+

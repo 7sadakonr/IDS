@@ -43,9 +43,15 @@ class ScanJob:
             raise ScanJobTransitionError("Only active scans can be cancelled")
         self.status = ScanStatus.CANCELLED
 
+    def fail(self) -> None:
+        if self.status not in {ScanStatus.PENDING, ScanStatus.RUNNING}:
+            raise ScanJobTransitionError("Only active scans can fail")
+        self.status = ScanStatus.FAILED
+
     def complete(self) -> None:
         if self.status is not ScanStatus.RUNNING:
             raise ScanJobTransitionError("Only running scans can complete")
         self.status = ScanStatus.COMPLETED
         self.current_stage = "COMPLETE"
         self.progress = 100
+
