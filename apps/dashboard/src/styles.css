@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  color: #e5edf8;
+  background: #07111f;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at top right, #10324b 0%, #07111f 45%);
+}
+
+.app-shell {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  padding: 2rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #67e8f9;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+h1 {
+  margin: 0.5rem 0 0;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  letter-spacing: -0.06em;
+}
+
+.subtitle {
+  margin: 0.5rem 0 0;
+  color: #9db0c8;
+  font-size: 1.125rem;
+}

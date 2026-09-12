@@ -1,0 +1,31 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Supabase and local tooling
+.supabase/
+.superpowers/
+
+# ML data, generated artifacts, and large reports
+ml/dataset/raw/
+ml/dataset/processed/
+ml/dataset/splits/
+ml/models/*.joblib
+ml/models/*.sha256
+ml/reports/*.png
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
