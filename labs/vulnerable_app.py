@@ -6,12 +6,12 @@ from typing import Any
 from fastapi import FastAPI, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-app = FastAPI(title="ThreatSentry Controlled Lab", version="1.1.0")
+app = FastAPI(title="ThreatSentry Controlled Lab", version="1.2.0")
 
-# Security Mode Toggle: Default to True (Secure/Hardened) as requested
+# Security Mode: Default to True (Secure / Hardened)
 SECURE_MODE: bool = True
 
-# In-memory SQLite database for realistic testing
+# In-memory SQLite database
 def get_db():
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -30,6 +30,8 @@ def get_db():
 
 DB_CONN = get_db()
 
+import re
+
 # State for verification token
 TOKEN_FILE = Path("labs/threatsentry.txt")
 _in_memory_token = "ts_lab_token_demo"
@@ -43,32 +45,36 @@ if TOKEN_FILE.exists():
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    """Dynamically applies security headers or vulnerable oversights based on SECURE_MODE."""
+    """Dynamically applies full OWASP security headers or vulnerable oversights."""
     response: Response = await call_next(request)
 
     if SECURE_MODE:
-        # --- SECURE / HARDENED PROFILE ---
-        # 1. Full OWASP recommended defensive headers
+        # --- ALL 8 OWASP DEFENSIVE SECURITY HEADERS ---
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
 
-        # 2. Hardened cookie with HttpOnly, Secure, and SameSite protection
+        # Hardened cookie with HttpOnly, Secure, and SameSite protection
         response.headers.append("Set-Cookie", "lab_session=guest_abc12345; Path=/; HttpOnly; SameSite=Lax; Secure")
 
-        # 3. Suppress all technology banner leaks
-        response.headers["Server"] = "ProtectedServer"
+        # Suppress all technology and version banners
+        if "server" in response.headers:
+            del response.headers["server"]
+        if "Server" in response.headers:
+            del response.headers["Server"]
         if "X-Powered-By" in response.headers:
             del response.headers["X-Powered-By"]
+        if "x-powered-by" in response.headers:
+            del response.headers["x-powered-by"]
     else:
-        # --- VULNERABLE PROFILE (For initial penetration testing) ---
-        # 1. Server banner disclosure
+        # --- VULNERABLE PROFILE ---
         response.headers["Server"] = "VulnerableLab/1.0 (Ubuntu 22.04)"
         response.headers["X-Powered-By"] = "PHP/8.1.0-Simulated"
-
-        # 2. Insecure cookie flag omission (no Secure, no HttpOnly, no SameSite)
         response.headers.append("Set-Cookie", "lab_session=guest_abc12345; Path=/")
 
     return response
@@ -89,7 +95,7 @@ def get_verification_challenge(request: Request, token: str | None = None):
         or token
         or _in_memory_token
     )
-    return f"threatsentry-verification={effective_token}\n"
+    return "threatsentry-verification=" + effective_token + "\n"
 
 
 @app.get("/set-token", response_class=HTMLResponse)
@@ -97,14 +103,15 @@ def get_verification_challenge(request: Request, token: str | None = None):
 def set_verification_token(token: str = Query(default="", alias="token")):
     global _in_memory_token
     clean_token = token.strip().replace("threatsentry-verification=", "")
-    if clean_token:
+    if clean_token and re.match(r"^[A-Za-z0-9_\-]+$", clean_token):
         _in_memory_token = clean_token
         try:
             TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-            TOKEN_FILE.write_text(f"threatsentry-verification={clean_token}\n", encoding="utf-8")
+            TOKEN_FILE.write_text("threatsentry-verification=" + clean_token + "\n", encoding="utf-8")
         except Exception:
             pass
 
+    safe_token = html.escape(_in_memory_token)
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
@@ -114,20 +121,21 @@ def set_verification_token(token: str = Query(default="", alias="token")):
     </head>
     <body>
         <h2>Verification Token Updated!</h2>
-        <p>Active Token: <code>threatsentry-verification={_in_memory_token}</code></p>
+        <p>Active Token: <code>threatsentry-verification={safe_token}</code></p>
         <p><a href="/" style="color: #38bdf8;">&larr; Back to Lab Home</a></p>
     </body>
     </html>
     """)
 
 
-@app.get("/toggle-security", response_class=HTMLResponse)
 @app.post("/toggle-security", response_class=HTMLResponse)
-def toggle_security(mode: str = Query(default="")):
+async def toggle_security_post(request: Request):
+    """POST-only toggle to prevent web crawlers from accidentally toggling security mode."""
     global SECURE_MODE
-    if mode.lower() in ("secure", "safe", "true", "1"):
+    body = (await request.body()).decode("utf-8", errors="ignore")
+    if "mode=secure" in body:
         SECURE_MODE = True
-    elif mode.lower() in ("vulnerable", "vuln", "false", "0"):
+    elif "mode=vulnerable" in body:
         SECURE_MODE = False
     else:
         SECURE_MODE = not SECURE_MODE
@@ -149,8 +157,24 @@ def toggle_security(mode: str = Query(default="")):
     """)
 
 
+
+@app.get("/toggle-security", response_class=HTMLResponse)
+def toggle_security_get(mode: str = Query(default="")):
+    """For automated tests only; web crawler will not find a link to this."""
+    global SECURE_MODE
+    if mode.lower() in ("secure", "safe", "true", "1"):
+        SECURE_MODE = True
+    elif mode.lower() in ("vulnerable", "vuln", "false", "0"):
+        SECURE_MODE = False
+    else:
+        SECURE_MODE = not SECURE_MODE
+
+    return HTMLResponse(f"<!DOCTYPE html><html><body>Mode: {SECURE_MODE}</body></html>")
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
+    # POST form button ensures crawler will never trigger or follow it
     status_card = f"""
     <div class="card" style="border: 2px solid {'#10b981' if SECURE_MODE else '#e11d48'}; background: {'#064e3b33' if SECURE_MODE else '#88133733'};">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -159,15 +183,16 @@ def home():
                     {'🛡️ Security Status: HARDENED & SECURE' if SECURE_MODE else '⚠️ Security Status: VULNERABLE'}
                 </h2>
                 <p style="margin: 0; color: {'#a7f3d0' if SECURE_MODE else '#fecdd3'}; font-size: 0.9rem;">
-                    {'[ACTIVE PROTECTIONS] Parameterized SQL queries, HTML entity escaping (XSS immune), OWASP security headers (CSP, HSTS, X-Frame-Options), and secure cookies.' if SECURE_MODE else '[ACTIVE FLAWS] Raw SQL query concatenation, unescaped HTML reflection, banner disclosure, and missing security headers.'}
+                    {'[PROTECTED] Parameterized SQL queries, HTML entity escaping (XSS immune), full OWASP security headers (CSP, HSTS, X-Frame-Options, nosniff, permissions, COOP, CORP), and hardened cookies.' if SECURE_MODE else '[VULNERABLE] Raw SQL concatenation, unescaped HTML reflection, banner disclosure, and missing security headers.'}
                 </p>
             </div>
             <div>
-                <a href="/toggle-security?mode={'vulnerable' if SECURE_MODE else 'secure'}">
-                    <button type="button" style="background: {'#e11d48' if SECURE_MODE else '#059669'}; color: white; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: bold; cursor: pointer; border: none;">
+                <form method="POST" action="/toggle-security">
+                    <input type="hidden" name="mode" value="{'vulnerable' if SECURE_MODE else 'secure'}" />
+                    <button type="submit" style="background: {'#e11d48' if SECURE_MODE else '#059669'}; color: white; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: bold; cursor: pointer; border: none;">
                         {'Switch to Vulnerable Mode' if SECURE_MODE else 'Switch to Secure Mode'}
                     </button>
-                </a>
+                </form>
             </div>
         </div>
     </div>
@@ -206,9 +231,9 @@ def home():
             <!-- Verification Card -->
             <div class="card">
                 <h2>1. Website Verification Token</h2>
-                <p>Current active challenge token: <code>threatsentry-verification={_in_memory_token}</code></p>
+                <p>Current active challenge token: <code>threatsentry-verification={html.escape(_in_memory_token)}</code></p>
                 <form action="/set-token" method="GET" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                    <input type="text" name="token" placeholder="Paste token from ThreatSentry (e.g. ts_verify_...)" value="{_in_memory_token}" required />
+                    <input type="text" name="token" placeholder="Paste token from ThreatSentry (e.g. ts_verify_...)" value="{html.escape(_in_memory_token)}" required />
                     <button type="submit">Update Token</button>
                 </form>
             </div>
