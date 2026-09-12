@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -6,8 +7,11 @@ from supabase import Client, create_client
 
 from backend.api.deps.auth import get_current_user_id
 from backend.api.websites import create_website_record
+from backend.api.website_verification import verification_update
 from backend.core.config import Settings, get_settings
 from backend.scanner.target_validation import TargetValidationError
+from backend.scanner.ssrf import BlockedTargetError
+from backend.scanner.verification_fetch import verify_ownership_document
 
 router = APIRouter(prefix="/api/websites", tags=["websites"])
 
@@ -83,3 +87,21 @@ def delete_website(
     _owned_website(database, website_id, user_id)
     database.table("websites").delete().eq("id", website_id).eq("user_id", user_id).execute()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{website_id}/verify")
+async def verify_website(
+    website_id: str,
+    user_id: str = Depends(get_current_user_id),
+    database: Client = Depends(get_database),
+) -> dict[str, Any]:
+    website = _owned_website(database, website_id, user_id)
+    try:
+        is_verified = await verify_ownership_document(
+            website["normalized_origin"], website["verification_token"]
+        )
+    except (BlockedTargetError, TargetValidationError):
+        is_verified = False
+    update = verification_update(is_verified, now=datetime.now(UTC))
+    response = database.table("websites").update(update).eq("id", website_id).eq("user_id", user_id).execute()
+    return response.data[0]

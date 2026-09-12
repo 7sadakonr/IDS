@@ -40,3 +40,7 @@ export function createWebsite(input: { name: string; url: string }): Promise<Web
     body: JSON.stringify(input),
   })
 }
+
+export function verifyWebsite(websiteId: string): Promise<Website> {
+  return request<Website>(`/api/websites/${websiteId}/verify`, { method: 'POST' })
+}
