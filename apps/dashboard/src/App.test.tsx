@@ -1,6 +1,12 @@
 import { render, screen } from '@testing-library/react'
+import { ReactNode } from 'react'
+import { vi } from 'vitest'
 
 import App from './App'
+
+vi.mock('./features/auth/ProtectedRoute', () => ({
+  ProtectedRoute: ({ children }: { children: ReactNode }) => children,
+}))
 
 describe('App', () => {
   it('renders the ThreatSentry application shell', () => {
