@@ -12,7 +12,7 @@
 
 **Enterprise-grade Web Application Security Platform** combining automated crawler scanning (Passive & Active) with a calibrated **Machine Learning Intrusion Detection System (OWASP CRS Classifier)** and multi-tenant management.
 
-[English Documentation](#threatsentry--web-vulnerability-scanner--owasp-ml-ids) • [คู่มือภาษาไทย (Thai Guide)](#คู่มือการติดตั้งและการใช้งานภาษาไทย)
+[Quick Start](#installation--setup) • [Architecture](#architecture-overview) • [Walkthrough](#end-to-end-walkthrough-vulnerable-lab-testing) • [ML Model](#machine-learning-ids-details) • [Deployment](#production-deployment-recommendations)
 
 </div>
 
@@ -35,8 +35,9 @@
 - [Automated Testing](#automated-testing)
 - [Git Configuration & Push Guide](#git-configuration--push-guide)
 - [Production Deployment Recommendations](#production-deployment-recommendations)
+- [Troubleshooting & FAQ](#troubleshooting--faq)
 - [Security & Legal Notice](#security--legal-notice)
-- [คู่มือการติดตั้งและการใช้งานภาษาไทย](#คู่มือการติดตั้งและการใช้งานภาษาไทย)
+- [License](#license)
 
 ---
 
@@ -87,12 +88,12 @@ flowchart TD
 ## Key Features
 
 1. **Target Management & Safe Domain Ownership Verification**
-   - Anti-Abuse token verification using `/.well-known/threatsentry.txt` or meta-tag verification to ensure scanners only execute against authorized targets.
+   - Anti-abuse token verification using `/.well-known/threatsentry.txt` or meta-tag verification to ensure scanners only execute against authorized targets.
    - Comprehensive SSRF protection preventing malicious internal network probing (blocks AWS/GCP metadata endpoints `169.254.169.254`, loopback addresses in production, and private RFC-1918 subnets).
 
 2. **Breadth-First Scope-Bound Crawler**
    - Configurable link discovery depth, rate limiting, and maximum URL limits.
-   - Respects origin boundaries and path filters to prevent infinite loops.
+   - Respects origin boundaries and path filters to prevent infinite loops and runaway requests.
 
 3. **Multi-Phase Vulnerability Scanners**
    - **Passive Security Checks:**
@@ -184,7 +185,7 @@ IDS/
 ### 1. Clone Repository
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/7sadakonr/IDS.git
 cd IDS
 ```
 
@@ -289,19 +290,19 @@ npm run dev
    ```bash
    .venv\Scripts\python.exe -m uvicorn backend.main:app --reload --port 8000
    ```
-   API Docs available at: `http://localhost:8000/docs`
+   Interactive Swagger documentation available at: `http://localhost:8000/docs`
 
 2. **Terminal 2 — React Dashboard:**
    ```bash
    npm --prefix apps/dashboard run dev
    ```
-   Dashboard available at: `http://localhost:3000`
+   Dashboard interface available at: `http://localhost:3000`
 
 3. **Terminal 3 — Vulnerable Test Lab:**
    ```bash
    .venv\Scripts\python.exe -m uvicorn labs.vulnerable_app:app --port 8080
    ```
-   Lab available at: `http://localhost:8080`
+   Vulnerable application running at: `http://localhost:8080`
 
 ---
 
@@ -411,8 +412,8 @@ This repository has a hardened `.gitignore` configuration designed to keep your 
    ```
 2. Verify that NO `.env` files containing real secrets are staged:
    ```bash
-   git status -s | grep -i "\.env"
-   # Should only show .env.example files
+   git status -s
+   # Real .env files must remain untracked
    ```
 3. Stage and commit:
    ```bash
@@ -436,6 +437,19 @@ This repository has a hardened `.gitignore` configuration designed to keep your 
 
 ---
 
+## Troubleshooting & FAQ
+
+#### 1. Why does domain verification fail for local targets?
+Ensure `SCANNER_ALLOW_PRIVATE_TARGETS=true` is set in your `backend/.env` file during local testing. For standard websites, verify that `/.well-known/threatsentry.txt` returns HTTP 200 with the exact verification token text.
+
+#### 2. Can I scan without verifying ownership?
+No. ThreatSentry enforces ownership verification by design to comply with safe security testing standards and prevent unauthorized attacks against third-party systems.
+
+#### 3. How do I add custom payloads to the active scanner?
+Active payloads are defined modularly in `backend/scanner/active/` (`sqli.py`, `reflected_xss.py`, and path traversal modules). You can extend the payload list with custom vectors while benefiting from the automated baseline comparison engine.
+
+---
+
 ## Security & Legal Notice
 
 > [!WARNING]
@@ -444,95 +458,6 @@ This repository has a hardened `.gitignore` configuration designed to keep your 
 
 ---
 
-## คู่มือการติดตั้งและการใช้งานภาษาไทย
+## License
 
-### 1. ความต้องการของระบบ (Prerequisites)
-- **Python 3.11+**
-- **Node.js 18+** และ **npm**
-- บัญชี **Supabase** (ใช้งานฟรีที่ [supabase.com](https://supabase.com))
-
-### 2. ขั้นตอนการติดตั้ง (Step-by-Step Installation)
-
-#### ขั้นตอนที่ 1: ติดตั้ง Backend (Python)
-เปิด PowerShell หรือ Terminal ที่โฟลเดอร์โปรเจกต์:
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r backend/requirements.txt
-```
-
-#### ขั้นตอนที่ 2: ติดตั้ง Frontend (React Dashboard)
-```powershell
-npm install
-npm --prefix apps/dashboard install
-```
-
-#### ขั้นตอนที่ 3: ตั้งค่าฐานข้อมูล Supabase
-1. เข้าไปที่แดชบอร์ด Supabase ของคุณ เลือกเมนู **SQL Editor**
-2. คัดลอกโค้ดจากไฟล์ `supabase/migrations/0001_initial_schema.sql` ทั้งหมดไปวาง แล้วกด **Run**
-3. ระบบจะสร้างตารางและตั้งค่านโยบายความปลอดภัย Row Level Security (RLS) ให้พร้อมใช้งานทันที
-
-#### ขั้นตอนที่ 4: ตั้งค่าไฟล์ Environment (.env)
-คัดลอกไฟล์ตัวอย่างทั้ง Backend และ Frontend:
-```powershell
-copy backend\.env.example backend\.env
-copy apps\dashboard\.env.example apps\dashboard\.env
-```
-จากนั้นเปิดแก้ไขไฟล์:
-- **`backend/.env`**: ใส่ `SUPABASE_URL` และ `SUPABASE_SERVICE_ROLE_KEY` ที่ได้จากหน้า Project Settings -> API ของ Supabase
-- **`apps/dashboard/.env`**: ใส่ `VITE_SUPABASE_URL` และ `VITE_SUPABASE_ANON_KEY`
-
----
-
-### 3. การรันระบบ (Running the Project)
-
-สามารถรันทุกบริการ (API, Dashboard, และ Lab สำหรับทดสอบ) พร้อมกันได้ด้วยคำสั่งเดียว:
-```powershell
-npm run dev:all
-```
-ระบบจะเปิดใช้งาน:
-- **Dashboard UI**: [http://localhost:3000](http://localhost:3000)
-- **FastAPI Backend API**: [http://localhost:8000](http://localhost:8000) (ดู Swagger Docs ได้ที่ [http://localhost:8000/docs](http://localhost:8000/docs))
-- **Vulnerable Test Lab**: [http://localhost:8080](http://localhost:8080)
-
----
-
-### 4. วิธีทดสอบการสแกนกับ Lab ในเครื่อง (Walkthrough)
-
-1. เข้าหน้าเว็บ [http://localhost:3000](http://localhost:3000)
-2. กดปุ่ม **Add Website** ใส่ URL: `http://127.0.0.1:8080`
-3. กดปุ่ม **Verify Ownership** (ระบบ Lab จำลองได้เปิดให้ตรวจสอบยืนยันสิทธิ์เรียบร้อยอัตโนมัติ) สถานะจะเปลี่ยนเป็น **Verified**
-4. กดปุ่ม **Launch Scan** (เลือกได้ทั้งแบบ Passive หรือ Active ที่รวมการตรวจจับด้วย ML)
-5. ตรวจดูผลการสแกน: ระบบจะแสดงรายการช่องโหว่ (SQLi, XSS, Path Traversal, Missing Headers) พร้อมคำแนะนำวิธีแก้โค้ดที่ถูกต้อง
-6. ตรวจดูหน้า **ML Model**: ทดลองป้อน Payload เพื่อดูคะแนนความน่าจะเป็นและการจำแนกประเภทการโจมตีแบบเรียลไทม์
-
----
-
-### 5. การทดสอบอัตโนมัติ (Automated Tests)
-- ทดสอบ Backend (83 tests):
-  ```powershell
-  pytest backend/tests
-  ```
-- ทดสอบ Frontend (13 tests):
-  ```powershell
-  npm --prefix apps/dashboard test
-  ```
-- ตรวจสอบการ Build สำหรับ Production:
-  ```powershell
-  npm --prefix apps/dashboard run build
-  ```
-
----
-
-### 6. ความพร้อมสำหรับการ Git Push
-ไฟล์ `.gitignore` ถูกตั้งค่าความปลอดภัยไว้เรียบร้อยแล้ว:
-- **ไฟล์ `.env` ที่มีกุญแจความลับจะไม่ถูก push ขึ้น git โดยเด็ดขาด** (มีการติดตามเฉพาะ `.env.example` เป็นตัวอย่าง)
-- โฟลเดอร์ `node_modules/`, `.venv/`, `dist/`, แคช และ log ต่าง ๆ จะถูก ignore
-- โมเดล ML ที่เทรนเสร็จแล้ว (`ml/models/web_ids_model_v1.0.0.joblib`) ถูกรวมไว้ใน Git เพื่อให้คนที่โคลนโปรเจกต์ไปสามารถรันระบบตรวจจับได้ทันทีโดยไม่ต้องไปเทรนใหม่
-
-สามารถ Push ขึ้น Git ได้อย่างปลอดภัยด้วยคำสั่ง:
-```powershell
-git add .
-git commit -m "feat: complete ThreatSentry scanner with OWASP ML IDS"
-git push origin main
-```\n
+This project is licensed under the [MIT License](LICENSE) — free for educational, personal, and commercial security auditing use.\n
