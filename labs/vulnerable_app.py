@@ -6,9 +6,12 @@ from typing import Any
 from fastapi import FastAPI, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-app = FastAPI(title="ThreatSentry Controlled Vulnerable Lab", version="1.0.0")
+app = FastAPI(title="ThreatSentry Controlled Lab", version="1.1.0")
 
-# In-memory SQLite database for realistic SQL injection testing
+# Security Mode Toggle: Default to True (Secure/Hardened) as requested
+SECURE_MODE: bool = True
+
+# In-memory SQLite database for realistic testing
 def get_db():
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -39,17 +42,35 @@ if TOKEN_FILE.exists():
 
 
 @app.middleware("http")
-async def add_passive_vulnerabilities(request: Request, call_next):
-    """Adds realistic passive security oversights (banner disclosure, missing headers, insecure cookies)."""
+async def security_middleware(request: Request, call_next):
+    """Dynamically applies security headers or vulnerable oversights based on SECURE_MODE."""
     response: Response = await call_next(request)
-    # 1. Server banner disclosure
-    response.headers["Server"] = "VulnerableLab/1.0 (Ubuntu 22.04)"
-    response.headers["X-Powered-By"] = "PHP/8.1.0-Simulated"
 
-    # 2. Insecure cookie flag omission (no Secure, no HttpOnly, no SameSite)
-    response.headers.append("Set-Cookie", "lab_session=guest_abc12345; Path=/")
+    if SECURE_MODE:
+        # --- SECURE / HARDENED PROFILE ---
+        # 1. Full OWASP recommended defensive headers
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-    # Deliberately omits Content-Security-Policy, HSTS, X-Frame-Options, etc.
+        # 2. Hardened cookie with HttpOnly, Secure, and SameSite protection
+        response.headers.append("Set-Cookie", "lab_session=guest_abc12345; Path=/; HttpOnly; SameSite=Lax; Secure")
+
+        # 3. Suppress all technology banner leaks
+        response.headers["Server"] = "ProtectedServer"
+        if "X-Powered-By" in response.headers:
+            del response.headers["X-Powered-By"]
+    else:
+        # --- VULNERABLE PROFILE (For initial penetration testing) ---
+        # 1. Server banner disclosure
+        response.headers["Server"] = "VulnerableLab/1.0 (Ubuntu 22.04)"
+        response.headers["X-Powered-By"] = "PHP/8.1.0-Simulated"
+
+        # 2. Insecure cookie flag omission (no Secure, no HttpOnly, no SameSite)
+        response.headers.append("Set-Cookie", "lab_session=guest_abc12345; Path=/")
+
     return response
 
 
@@ -100,8 +121,58 @@ def set_verification_token(token: str = Query(default="", alias="token")):
     """)
 
 
+@app.get("/toggle-security", response_class=HTMLResponse)
+@app.post("/toggle-security", response_class=HTMLResponse)
+def toggle_security(mode: str = Query(default="")):
+    global SECURE_MODE
+    if mode.lower() in ("secure", "safe", "true", "1"):
+        SECURE_MODE = True
+    elif mode.lower() in ("vulnerable", "vuln", "false", "0"):
+        SECURE_MODE = False
+    else:
+        SECURE_MODE = not SECURE_MODE
+
+    status_str = "🛡️ SECURE / HARDENED (Safe)" if SECURE_MODE else "⚠️ VULNERABLE (Testing Mode)"
+    return HTMLResponse(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta http-equiv="refresh" content="1;url=/" />
+        <title>Security Mode Switched</title>
+        <style>body {{ font-family: sans-serif; background: #0b1329; color: #e2e8f0; padding: 2rem; }}</style>
+    </head>
+    <body>
+        <h2>Security Mode Switched to: {status_str}</h2>
+        <p>Redirecting back to lab home in 1 second... <a href="/" style="color:#38bdf8;">Click here</a></p>
+    </body>
+    </html>
+    """)
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
+    status_card = f"""
+    <div class="card" style="border: 2px solid {'#10b981' if SECURE_MODE else '#e11d48'}; background: {'#064e3b33' if SECURE_MODE else '#88133733'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h2 style="color: {'#34d399' if SECURE_MODE else '#f87171'}; margin: 0 0 0.5rem 0;">
+                    {'🛡️ Security Status: HARDENED & SECURE' if SECURE_MODE else '⚠️ Security Status: VULNERABLE'}
+                </h2>
+                <p style="margin: 0; color: {'#a7f3d0' if SECURE_MODE else '#fecdd3'}; font-size: 0.9rem;">
+                    {'[ACTIVE PROTECTIONS] Parameterized SQL queries, HTML entity escaping (XSS immune), OWASP security headers (CSP, HSTS, X-Frame-Options), and secure cookies.' if SECURE_MODE else '[ACTIVE FLAWS] Raw SQL query concatenation, unescaped HTML reflection, banner disclosure, and missing security headers.'}
+                </p>
+            </div>
+            <div>
+                <a href="/toggle-security?mode={'vulnerable' if SECURE_MODE else 'secure'}">
+                    <button type="button" style="background: {'#e11d48' if SECURE_MODE else '#059669'}; color: white; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: bold; cursor: pointer; border: none;">
+                        {'Switch to Vulnerable Mode' if SECURE_MODE else 'Switch to Secure Mode'}
+                    </button>
+                </a>
+            </div>
+        </div>
+    </div>
+    """
+
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -115,7 +186,7 @@ def home():
             h1, h2, h3 {{ color: #ffffff; }}
             input[type="text"] {{ background: #1e293b; border: 1px solid #334155; color: white; padding: 0.5rem 0.75rem; border-radius: 4px; width: 60%; }}
             button {{ background: #0284c7; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: bold; }}
-            button:hover {{ background: #0369a1; }}
+            button:hover {{ opacity: 0.9; }}
             a {{ color: #38bdf8; text-decoration: none; }}
             a:hover {{ text-decoration: underline; }}
             code {{ background: #1e293b; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; color: #7dd3fc; }}
@@ -127,7 +198,10 @@ def home():
     <body>
         <div class="container">
             <h1>ThreatSentry Test Lab Target</h1>
-            <p>A controlled vulnerable testing environment running locally on <code>http://localhost:8080</code> for verifying crawlers, active scanners (SQLi, XSS), and hybrid ML analysis.</p>
+            <p>A controlled testing environment running locally on <code>http://localhost:8080</code> for verifying crawlers, active scanners (SQLi, XSS), passive header detection, and hybrid ML analysis.</p>
+
+            <!-- Mode Switcher Card -->
+            {status_card}
 
             <!-- Verification Card -->
             <div class="card">
@@ -139,25 +213,25 @@ def home():
                 </form>
             </div>
 
-            <!-- Vulnerable Reflected XSS -->
+            <!-- Search Service -->
             <div class="card">
-                <h2>2. Search Service <span class="badge vuln">Vulnerable: Reflected XSS</span></h2>
-                <p>Input in parameter <code>q</code> is rendered directly into HTML without context-aware entity encoding.</p>
+                <h2>2. Search Service <span class="badge {'safe' if SECURE_MODE else 'vuln'}">{'Protected (Escaped)' if SECURE_MODE else 'Vulnerable: Reflected XSS'}</span></h2>
+                <p>{'Input in parameter <code>q</code> is securely encoded using HTML entity escaping.' if SECURE_MODE else 'Input in parameter <code>q</code> is rendered directly into HTML without context-aware entity encoding.'}</p>
                 <form action="/search" method="GET" style="display: flex; gap: 0.5rem;">
                     <input type="text" name="q" value="laptop stand" />
                     <button type="submit">Search Products</button>
                 </form>
             </div>
 
-            <!-- Vulnerable SQL Injection -->
+            <!-- Product Catalog -->
             <div class="card">
-                <h2>3. Product Catalog <span class="badge vuln">Vulnerable: SQL Injection</span></h2>
-                <p>Parameter <code>id</code> is interpolated directly into an in-memory SQLite query.</p>
+                <h2>3. Product Catalog <span class="badge {'safe' if SECURE_MODE else 'vuln'}">{'Protected (Parameterized SQL)' if SECURE_MODE else 'Vulnerable: SQL Injection'}</span></h2>
+                <p>{'Parameter <code>id</code> is bound securely via prepared statement parameter binding.' if SECURE_MODE else 'Parameter <code>id</code> is interpolated directly into an in-memory SQLite query.'}</p>
                 <ul>
                     <li><a href="/products?id=1">Product 1 (Secure Laptop Stand)</a></li>
                     <li><a href="/products?id=2">Product 2 (Mechanical Keyboard)</a></li>
                     <li><a href="/products?id=3">Product 3 (Privacy Screen Protector)</a></li>
-                    <li><a href="/products?id=1%27">Trigger Error: Product ID <code>1'</code></a></li>
+                    <li><a href="/products?id=1%27">Probe: Product ID <code>1'</code></a></li>
                 </ul>
             </div>
 
@@ -175,7 +249,9 @@ def home():
 
 @app.get("/search", response_class=HTMLResponse)
 def search(q: str = "laptop"):
-    """Vulnerable to Reflected XSS: Parameter 'q' is reflected unescaped."""
+    """Search endpoint: Immune to XSS in SECURE_MODE, vulnerable otherwise."""
+    rendered_query = html.escape(q) if SECURE_MODE else q
+
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
@@ -184,9 +260,8 @@ def search(q: str = "laptop"):
         <style>body {{ font-family: sans-serif; background: #070d18; color: #e2e8f0; padding: 2rem; }} a {{ color: #38bdf8; }}</style>
     </head>
     <body>
-        <h1>Search Results</h1>
-        <!-- Vulnerability: Raw unencoded reflection -->
-        <p>You searched for: <strong>{q}</strong></p>
+        <h1>Search Results {'(Protected)' if SECURE_MODE else ''}</h1>
+        <p>You searched for: <strong>{rendered_query}</strong></p>
 
         <div style="margin-top: 1.5rem;">
             <p>Found 3 matching items.</p>
@@ -204,11 +279,12 @@ def search(q: str = "laptop"):
 
 @app.get("/products", response_class=HTMLResponse)
 def get_product(id: str = "1"):
-    """Vulnerable to SQL Injection: Parameter 'id' is concatenated into query."""
+    """Product details: Protected with parameterized queries in SECURE_MODE, vulnerable otherwise."""
     cursor = DB_CONN.cursor()
-    query = f"SELECT id, name, price, description FROM products WHERE id = '{id}'"
-    try:
-        cursor.execute(query)
+
+    if SECURE_MODE:
+        # Parameterized query immune to SQL injection
+        cursor.execute("SELECT id, name, price, description FROM products WHERE id = ?", (id,))
         row = cursor.fetchone()
         if not row:
             return HTMLResponse("""
@@ -234,19 +310,48 @@ def get_product(id: str = "1"):
         </body>
         </html>
         """)
-    except sqlite3.OperationalError as exc:
-        # Deliberately expose sqlite3.OperationalError for authentic error-based detection
-        return HTMLResponse(f"""
-        <!DOCTYPE html>
-        <html>
-        <head><title>500 Internal Server Error</title></head>
-        <body style="background:#1a050b; color:#fda4af; font-family:monospace; padding:2rem;">
-            <h2>Database Query Execution Error</h2>
-            <p><strong>sqlite3.OperationalError:</strong> {html.escape(str(exc))}</p>
-            <pre>Query: {html.escape(query)}</pre>
-        </body>
-        </html>
-        """, status_code=500)
+    else:
+        # Vulnerable SQL concatenation
+        query = f"SELECT id, name, price, description FROM products WHERE id = '{id}'"
+        try:
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if not row:
+                return HTMLResponse("""
+                <!DOCTYPE html>
+                <html><body style="background:#070d18; color:white; font-family:sans-serif; padding:2rem;">
+                <h2>Product Not Found</h2>
+                <p><a href="/" style="color:#38bdf8;">&larr; Back to Catalog</a></p>
+                </body></html>
+                """, status_code=404)
+
+            return HTMLResponse(f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>{html.escape(row['name'])} - ThreatSentry Lab</title>
+                <style>body {{ font-family: sans-serif; background: #070d18; color: #e2e8f0; padding: 2rem; }} a {{ color: #38bdf8; }}</style>
+            </head>
+            <body>
+                <h1>{html.escape(row['name'])}</h1>
+                <p><strong>Price:</strong> ${row['price']:.2f}</p>
+                <p><strong>Description:</strong> {html.escape(row['description'])}</p>
+                <p><a href="/">&larr; Back to Catalog</a></p>
+            </body>
+            </html>
+            """)
+        except sqlite3.OperationalError as exc:
+            return HTMLResponse(f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>500 Internal Server Error</title></head>
+            <body style="background:#1a050b; color:#fda4af; font-family:monospace; padding:2rem;">
+                <h2>Database Query Execution Error</h2>
+                <p><strong>sqlite3.OperationalError:</strong> {html.escape(str(exc))}</p>
+                <pre>Query: {html.escape(query)}</pre>
+            </body>
+            </html>
+            """, status_code=500)
 
 
 @app.get("/about", response_class=HTMLResponse)
@@ -255,7 +360,7 @@ def about():
     <!DOCTYPE html>
     <html><body style="background:#070d18; color:#e2e8f0; font-family:sans-serif; padding:2rem;">
         <h1>About ThreatSentry Test Lab</h1>
-        <p>This application is deliberately designed for vulnerability testing, hybrid ML evaluation, and automated scanning benchmarks.</p>
+        <p>This application is designed for vulnerability testing, hybrid ML evaluation, and automated scanning benchmarks.</p>
         <p><a href="/" style="color:#38bdf8;">&larr; Back to Home</a></p>
     </body></html>
     """)

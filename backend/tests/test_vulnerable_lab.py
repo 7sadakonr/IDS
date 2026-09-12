@@ -35,6 +35,7 @@ def test_vulnerable_lab_verification_header_echo() -> None:
 
 def test_vulnerable_lab_reflected_xss() -> None:
     client = TestClient(app)
+    client.get("/toggle-security?mode=vulnerable")
     marker = "<ts_probe_test>"
     response = client.get(f"/search?q={marker}")
     assert response.status_code == 200
@@ -44,6 +45,7 @@ def test_vulnerable_lab_reflected_xss() -> None:
 
 def test_vulnerable_lab_sqli_error() -> None:
     client = TestClient(app)
+    client.get("/toggle-security?mode=vulnerable")
     # Safe query
     safe_resp = client.get("/products?id=1")
     assert safe_resp.status_code == 200
@@ -53,3 +55,27 @@ def test_vulnerable_lab_sqli_error() -> None:
     injected_resp = client.get("/products?id=1'")
     assert injected_resp.status_code == 500
     assert "sqlite3.OperationalError" in injected_resp.text
+
+
+def test_vulnerable_lab_secure_mode() -> None:
+    client = TestClient(app)
+    client.get("/toggle-security?mode=secure")
+
+    # 1. XSS entity encoding protection
+    marker = "<script>alert(1)</script>"
+    xss_resp = client.get(f"/search?q={marker}")
+    assert xss_resp.status_code == 200
+    assert marker not in xss_resp.text
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in xss_resp.text
+
+    # 2. Parameterized SQL query protection
+    injected_resp = client.get("/products?id=1'")
+    assert injected_resp.status_code == 404
+    assert "sqlite3.OperationalError" not in injected_resp.text
+
+    # 3. Security headers active
+    assert xss_resp.headers.get("X-Frame-Options") == "DENY"
+    assert xss_resp.headers.get("X-Content-Type-Options") == "nosniff"
+    assert "Content-Security-Policy" in xss_resp.headers
+    assert "Strict-Transport-Security" in xss_resp.headers
+
