@@ -8,6 +8,10 @@ vi.mock('./features/auth/ProtectedRoute', () => ({
   ProtectedRoute: ({ children }: { children: ReactNode }) => children,
 }))
 
+vi.mock('./features/dashboard/DashboardPage', () => ({
+  DashboardPage: () => <p>Security operations console</p>,
+}))
+
 describe('App', () => {
   it('renders the ThreatSentry application shell', () => {
     render(<App />)
