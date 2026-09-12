@@ -1,0 +1,13 @@
+{
+  "name": "threatsentry",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,magenta \".\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000\" \"npm --prefix apps/dashboard run dev\"",
+    "dev:api": ".\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000",
+    "dev:web": "npm --prefix apps/dashboard run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
