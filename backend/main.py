@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import Settings, get_settings
+from backend.api.routers.websites import router as websites_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -14,6 +15,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-Id"],
     )
+    app.include_router(websites_router)
 
     @app.get("/health")
     async def health() -> dict[str, object]:

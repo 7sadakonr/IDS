@@ -1,11 +1,18 @@
 import { FormEvent, useState } from 'react'
 
+import { supabase } from '../../lib/supabase'
+
 export function LoginPage() {
   const [message, setMessage] = useState<string | null>(null)
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setMessage('Authentication service is being initialized.')
+    const form = new FormData(event.currentTarget)
+    const { error } = await supabase.auth.signInWithPassword({
+      email: String(form.get('email') ?? ''),
+      password: String(form.get('password') ?? ''),
+    })
+    setMessage(error ? error.message : 'Signed in. Opening your console...')
   }
 
   return (
