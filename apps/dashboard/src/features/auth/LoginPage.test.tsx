@@ -18,6 +18,7 @@ it('renders email-password login controls', () => {
   expect(screen.getByRole('heading', { name: 'Sign in to ThreatSentry' })).toBeInTheDocument()
   expect(screen.getByLabelText('Email')).toBeInTheDocument()
   expect(screen.getByLabelText('Password')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Create an account' })).toHaveAttribute('href', '/register')
 })
 
 it('signs in with the submitted credentials', async () => {
