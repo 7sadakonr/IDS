@@ -1,9 +1,11 @@
 import { FormEvent, useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import { supabase } from '../../lib/supabase'
 
 export function LoginPage() {
   const [message, setMessage] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -12,7 +14,11 @@ export function LoginPage() {
       email: String(form.get('email') ?? ''),
       password: String(form.get('password') ?? ''),
     })
-    setMessage(error ? error.message : 'Signed in. Opening your console...')
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+    navigate('/dashboard', { replace: true })
   }
 
   return (

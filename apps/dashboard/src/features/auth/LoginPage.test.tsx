@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { vi } from 'vitest'
 
 import { LoginPage } from './LoginPage'
@@ -13,7 +14,7 @@ vi.mock('../../lib/supabase', () => ({
 }))
 
 it('renders email-password login controls', () => {
-  render(<LoginPage />)
+  render(<MemoryRouter><LoginPage /></MemoryRouter>)
 
   expect(screen.getByRole('heading', { name: 'Sign in to ThreatSentry' })).toBeInTheDocument()
   expect(screen.getByLabelText('Email')).toBeInTheDocument()
@@ -24,7 +25,14 @@ it('renders email-password login controls', () => {
 it('signs in with the submitted credentials', async () => {
   signInWithPassword.mockResolvedValue({ data: { session: null }, error: null })
   const user = userEvent.setup()
-  render(<LoginPage />)
+  render(
+    <MemoryRouter initialEntries={['/login']}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/dashboard" element={<p>security console</p>} />
+      </Routes>
+    </MemoryRouter>,
+  )
 
   await user.type(screen.getByLabelText('Email'), 'analyst@example.com')
   await user.type(screen.getByLabelText('Password'), 'secure-password')
@@ -34,4 +42,5 @@ it('signs in with the submitted credentials', async () => {
     email: 'analyst@example.com',
     password: 'secure-password',
   })
+  expect(await screen.findByText('security console')).toBeInTheDocument()
 })
